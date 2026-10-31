@@ -17,7 +17,6 @@
             font-family: 'Prompt', 'Inter', sans-serif;
             background-color: #f8fafc;
         }
-        /* Custom scrollbar for table container */
         .custom-scrollbar::-webkit-scrollbar {
             height: 6px;
         }
@@ -155,7 +154,7 @@
                 <div class="flex flex-wrap items-center gap-2">
                     <!-- Status Filter Tabs -->
                     <div class="inline-flex p-1 bg-slate-200/70 rounded-xl text-xs font-medium" id="filter-tabs">
-                        <button onclick="setFilter('all')" data-filter="all" class="filter-btn active-tab px-3 py-1.5 rounded-lg bg-white text-slate-800 shadow-sm transition">ทั้งหมด</button>
+                        <button onclick="setFilter('all')" data-filter="all" class="filter-btn active-tab px-3 py-1.5 rounded-lg bg-white text-slate-800 shadow-sm transition font-semibold">ทั้งหมด</button>
                         <button onclick="setFilter('in-progress')" data-filter="in-progress" class="filter-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">กำลังทำ</button>
                         <button onclick="setFilter('completed')" data-filter="completed" class="filter-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">เสร็จสิ้น</button>
                         <button onclick="setFilter('pending')" data-filter="pending" class="filter-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">รอดำเนินการ</button>
@@ -192,7 +191,7 @@
                 </table>
             </div>
 
-            <!-- Empty State (When no results found) -->
+            <!-- Empty State -->
             <div id="empty-state" class="hidden py-16 text-center">
                 <div class="w-14 h-14 bg-slate-100 rounded-2xl mx-auto flex items-center justify-center text-slate-400 mb-3">
                     <i data-lucide="inbox" class="w-7 h-7"></i>
@@ -227,7 +226,6 @@
 
     <!-- Application Script -->
     <script>
-        // Full dataset for the project
         const tasks = [
             {
                 id: "TSK-001",
@@ -244,7 +242,7 @@
                 id: "TSK-002",
                 title: "พัฒนา RESTful API และเชื่อมต่อ Auth Token",
                 category: "Backend Development",
-                assignee: { name: "ธนวัฒน์ ขันเขีย", initials: "ธว", bg: "bg-indigo-100 text-indigo-700" },
+                assignee: { name: "ธนวัฒน์ กันเขี่ย", initials: "ธว", bg: "bg-indigo-100 text-indigo-700" },
                 priority: "สูงมาก",
                 status: "in-progress",
                 statusLabel: "กำลังดำเนินการ",
@@ -266,7 +264,7 @@
                 id: "TSK-004",
                 title: "พัฒนาหน้าบ้าน Responsive Web App ด้วย Tailwind",
                 category: "Frontend Development",
-                assignee: { name: "ธนวัฒน์ ขันเขีย", initials: "ธว", bg: "bg-indigo-100 text-indigo-700" },
+                assignee: { name: "ธนวัฒน์ กันเขี่ย", initials: "ธว", bg: "bg-indigo-100 text-indigo-700" },
                 priority: "สูง",
                 status: "in-progress",
                 statusLabel: "กำลังดำเนินการ",
@@ -288,7 +286,7 @@
                 id: "TSK-006",
                 title: "ติดตั้งและตั้งค่า CI/CD Pipeline ผ่าน GitHub Actions",
                 category: "DevOps & Cloud",
-                assignee: { name: "ธนวัฒน์ ขันเขีย", initials: "ธว", bg: "bg-indigo-100 text-indigo-700" },
+                assignee: { name: "ธนวัฒน์ กันเขี่ย", initials: "ธว", bg: "bg-indigo-100 text-indigo-700" },
                 priority: "ปานกลาง",
                 status: "completed",
                 statusLabel: "เสร็จสิ้น",
@@ -341,12 +339,10 @@
             }
         ];
 
-        // Global filter state
         let currentStatusFilter = 'all';
         let currentPriorityFilter = 'all';
         let searchQuery = '';
 
-        // Helper: Get Badge colors
         function getPriorityBadge(priority) {
             switch(priority) {
                 case 'สูงมาก':
@@ -389,7 +385,6 @@
             `;
         }
 
-        // Render Overview Stats
         function updateStats() {
             const total = tasks.length;
             const completed = tasks.filter(t => t.status === 'completed').length;
@@ -414,12 +409,10 @@
             document.getElementById('bar-pending').style.width = `${pendingPct}%`;
         }
 
-        // Render Table Rows
         function renderTasks() {
             const tableBody = document.getElementById('task-table-body');
             const emptyState = document.getElementById('empty-state');
 
-            // Filtering
             const filteredTasks = tasks.filter(t => {
                 const matchesStatus = currentStatusFilter === 'all' || t.status === currentStatusFilter;
                 const matchesPriority = currentPriorityFilter === 'all' || t.priority === currentPriorityFilter;
@@ -432,7 +425,6 @@
                 return matchesStatus && matchesPriority && matchesSearch;
             });
 
-            // Update Counts
             document.getElementById('visible-count').textContent = filteredTasks.length;
             document.getElementById('total-count').textContent = tasks.length;
 
@@ -474,11 +466,9 @@
                 </tr>
             `).join('');
 
-            // Re-render icons if needed
             lucide.createIcons();
         }
 
-        // Event Handlers for Filters
         function setFilter(status) {
             currentStatusFilter = status;
             document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -500,19 +490,16 @@
             setFilter('all');
         }
 
-        // Initialize Listeners
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
             updateStats();
             renderTasks();
 
-            // Search input binding
             document.getElementById('search-input').addEventListener('input', (e) => {
                 searchQuery = e.target.value;
                 renderTasks();
             });
 
-            // Priority filter binding
             document.getElementById('priority-filter').addEventListener('change', (e) => {
                 currentPriorityFilter = e.target.value;
                 renderTasks();
