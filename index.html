@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ESP32 HiveMQ Cloud Dashboard</title>
+  <title>ESP32 HiveMQ Cloud Traffic Light Dashboard</title>
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -28,7 +28,7 @@
     }
   </script>
 
-  <!-- Font Awesome for Icons -->
+  <!-- Font Awesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <!-- Chart.js CDN -->
@@ -53,6 +53,16 @@
       background: #374151;
       border-radius: 9999px;
     }
+    /* Lamp Glow animations */
+    .lamp-glow-red {
+      box-shadow: 0 0 30px rgba(239, 68, 68, 0.7), inset 0 0 15px rgba(255, 255, 255, 0.6);
+    }
+    .lamp-glow-yellow {
+      box-shadow: 0 0 30px rgba(234, 179, 8, 0.75), inset 0 0 15px rgba(255, 255, 255, 0.6);
+    }
+    .lamp-glow-green {
+      box-shadow: 0 0 30px rgba(34, 197, 94, 0.75), inset 0 0 15px rgba(255, 255, 255, 0.6);
+    }
   </style>
 </head>
 <body class="bg-darkBg text-slate-100 min-h-screen flex flex-col antialiased selection:bg-brand-500 selection:text-white">
@@ -65,10 +75,10 @@
       </div>
       <div>
         <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-          ESP32 IoT Dashboard
+          ESP32 LED & Sensors Control
           <span class="text-xs px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20 font-medium">HiveMQ Cloud</span>
         </h1>
-        <p class="text-xs text-slate-400">Secure WebSocket (WSS:8884)</p>
+        <p class="text-xs text-slate-400 font-mono">D2 (Red) • D4 (Yellow) • D5 (Green)</p>
       </div>
     </div>
 
@@ -84,7 +94,7 @@
       </div>
 
       <!-- Settings Button -->
-      <button onclick="toggleConfigModal()" class="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition border border-cardBorder text-sm" title="Connection Settings">
+      <button onclick="toggleConfigModal()" class="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition border border-cardBorder text-sm" title="MQTT Settings">
         <i class="fa-solid fa-sliders"></i>
       </button>
     </div>
@@ -110,7 +120,7 @@
         </div>
         <div class="mt-4">
           <div class="flex justify-between text-xs text-slate-400 mb-1">
-            <span>ช่วงอุณหภูมิปกติ</span>
+            <span>สภาพอากาศ</span>
             <span id="tempStatus">รอข้อมูล...</span>
           </div>
           <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
@@ -157,7 +167,7 @@
         <div class="mt-4">
           <div class="flex justify-between text-xs text-slate-400 mb-1">
             <span>ความแรงสัญญาณ</span>
-            <span id="wifiStatus">กำลังเชื่อมต่อ...</span>
+            <span id="wifiStatus">กำลังรอข้อมูล...</span>
           </div>
           <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
             <div id="rssiBar" class="bg-emerald-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
@@ -168,14 +178,14 @@
       <!-- Device State & Last Seen -->
       <div class="relative overflow-hidden bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-sm hover:border-slate-700 transition">
         <div class="flex items-center justify-between text-slate-400 mb-3">
-          <span class="text-xs font-semibold uppercase tracking-wider">สถานะฮาร์ดแวร์</span>
-          <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
-            <i class="fa-solid fa-bolt"></i>
+          <span class="text-xs font-semibold uppercase tracking-wider">สถานะบอร์ด ESP32</span>
+          <div class="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center">
+            <i class="fa-solid fa-tower-broadcast"></i>
           </div>
         </div>
-        <div class="flex items-center gap-2.5">
-          <span id="relayStatusBadge" class="px-2.5 py-1 text-sm font-semibold rounded-lg bg-slate-800 text-slate-300 border border-slate-700">
-            LED / Relay: OFF
+        <div class="flex items-center gap-2">
+          <span id="deviceOnlineBadge" class="px-2.5 py-1 text-sm font-semibold rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            Waiting Heartbeat
           </span>
         </div>
         <div class="mt-4 text-xs text-slate-400 space-y-1">
@@ -184,81 +194,150 @@
             <span id="lastSeen" class="text-slate-200 font-mono">--:--:--</span>
           </div>
           <div class="flex justify-between">
-            <span>Heartbeat:</span>
-            <span id="heartbeatStatus" class="text-amber-400">รอรับแพ็กเก็ต</span>
+            <span>ความถี่ส่งข้อมูล:</span>
+            <span class="text-slate-400">ทุกๆ 5 วินาที</span>
           </div>
         </div>
       </div>
 
     </div>
 
-    <!-- Control Panel & Realtime Graph Section -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- 3-Channel LED Traffic Light Control Panel -->
+    <div class="bg-cardBg border border-cardBorder rounded-2xl p-6 shadow-sm">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-cardBorder">
+        <div>
+          <h2 class="text-lg font-bold text-white flex items-center gap-2.5">
+            <i class="fa-solid fa-traffic-light text-amber-400"></i>
+            แผงควบคุมไฟ LED 3 สี (D2, D4, D5)
+          </h2>
+          <p class="text-xs text-slate-400 mt-1">
+            คลิกสวิตช์เพื่อส่งคำสั่งไปยัง Topic: <code class="text-brand-300 bg-slate-900 px-1.5 py-0.5 rounded border border-cardBorder font-mono">home/esp32/command</code>
+          </p>
+        </div>
 
-      <!-- Interactive Controls (1 Column) -->
-      <div class="bg-cardBg border border-cardBorder rounded-2xl p-6 flex flex-col justify-between space-y-6">
+        <!-- Master Switch Buttons -->
+        <div class="flex items-center gap-2.5">
+          <button onclick="sendAllLeds('ALL_ON')" class="py-2 px-4 rounded-xl font-semibold text-xs bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30 active:scale-95 transition flex items-center gap-2">
+            <i class="fa-solid fa-power-off"></i> เปิดทุกดวง (ALL ON)
+          </button>
+          <button onclick="sendAllLeds('ALL_OFF')" class="py-2 px-4 rounded-xl font-semibold text-xs bg-rose-600/20 text-rose-300 border border-rose-500/30 hover:bg-rose-600/30 active:scale-95 transition flex items-center gap-2">
+            <i class="fa-solid fa-stop"></i> ปิดทุกดวง (ALL OFF)
+          </button>
+        </div>
+      </div>
+
+      <!-- 3 Individual LED Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
+        
+        <!-- RED LED (Pin 2) -->
+        <div class="bg-slate-900/90 border border-cardBorder rounded-2xl p-5 flex flex-col justify-between hover:border-red-500/30 transition">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <!-- Glowing Indicator Lamp -->
+              <div id="redLampIndicator" class="w-8 h-8 rounded-full bg-red-950 border-2 border-red-800 flex items-center justify-center transition-all duration-300">
+                <i class="fa-solid fa-lightbulb text-red-700 text-sm" id="redLampIcon"></i>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
+                  ไฟสีแดง (Red LED)
+                  <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">D2</span>
+                </h3>
+                <p id="redStatusText" class="text-xs text-slate-400">สถานะ: ปิด (OFF)</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex items-center justify-between pt-4 border-t border-cardBorder/60">
+            <span class="text-xs text-slate-400 font-medium">สลับสถานะเปิด-ปิด</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="redToggle" onchange="toggleSingleLed('red', this.checked)" class="sr-only peer">
+              <div class="w-12 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+            </label>
+          </div>
+        </div>
+
+        <!-- YELLOW LED (Pin 4) -->
+        <div class="bg-slate-900/90 border border-cardBorder rounded-2xl p-5 flex flex-col justify-between hover:border-amber-500/30 transition">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <!-- Glowing Indicator Lamp -->
+              <div id="yellowLampIndicator" class="w-8 h-8 rounded-full bg-amber-950 border-2 border-amber-800 flex items-center justify-center transition-all duration-300">
+                <i class="fa-solid fa-lightbulb text-amber-700 text-sm" id="yellowLampIcon"></i>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
+                  ไฟสีเหลือง (Yellow LED)
+                  <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">D4</span>
+                </h3>
+                <p id="yellowStatusText" class="text-xs text-slate-400">สถานะ: ปิด (OFF)</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex items-center justify-between pt-4 border-t border-cardBorder/60">
+            <span class="text-xs text-slate-400 font-medium">สลับสถานะเปิด-ปิด</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="yellowToggle" onchange="toggleSingleLed('yellow', this.checked)" class="sr-only peer">
+              <div class="w-12 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+            </label>
+          </div>
+        </div>
+
+        <!-- GREEN LED (Pin 5) -->
+        <div class="bg-slate-900/90 border border-cardBorder rounded-2xl p-5 flex flex-col justify-between hover:border-emerald-500/30 transition">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <!-- Glowing Indicator Lamp -->
+              <div id="greenLampIndicator" class="w-8 h-8 rounded-full bg-emerald-950 border-2 border-emerald-800 flex items-center justify-center transition-all duration-300">
+                <i class="fa-solid fa-lightbulb text-emerald-700 text-sm" id="greenLampIcon"></i>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
+                  ไฟสีเขียว (Green LED)
+                  <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">D5</span>
+                </h3>
+                <p id="greenStatusText" class="text-xs text-slate-400">สถานะ: ปิด (OFF)</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex items-center justify-between pt-4 border-t border-cardBorder/60">
+            <span class="text-xs text-slate-400 font-medium">สลับสถานะเปิด-ปิด</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="greenToggle" onchange="toggleSingleLed('green', this.checked)" class="sr-only peer">
+              <div class="w-12 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+            </label>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Realtime Chart Section -->
+    <div class="bg-cardBg border border-cardBorder rounded-2xl p-6 shadow-sm">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
         <div>
           <h2 class="text-base font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-gamepad text-brand-400"></i> สั่งการอุปกรณ์ (Control Panel)
+            <i class="fa-solid fa-chart-line text-brand-400"></i> กราฟข้อมูลย้อนหลัง (Telemetry History)
           </h2>
-          <p class="text-xs text-slate-400 mt-1">ส่งคำสั่งไปยัง Topic: <code class="text-brand-300 bg-slate-800/80 px-1.5 py-0.5 rounded">home/esp32/command</code></p>
+          <p class="text-xs text-slate-400">อัปเดตแบบเรียลไทม์ตามแพ็กเกจที่ส่งจาก ESP32 (บันทึก 20 จุดล่าสุด)</p>
         </div>
-
-        <!-- Master Switch -->
-        <div class="bg-slate-900/80 border border-cardBorder rounded-xl p-5 flex items-center justify-between">
-          <div class="space-y-1">
-            <span class="text-sm font-semibold text-slate-200">สวิตช์ LED / Relay (Pin 2)</span>
-            <p id="switchHelperText" class="text-xs text-slate-400">สถานะปัจจุบัน: ปิดการทำงาน</p>
-          </div>
-          <label class="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox" id="relayToggle" onchange="toggleRelay(this.checked)" class="sr-only peer">
-            <div class="w-14 h-7 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[4px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-brand-600"></div>
-          </label>
-        </div>
-
-        <!-- Direct Trigger Buttons -->
-        <div class="grid grid-cols-2 gap-3">
-          <button onclick="sendCommand('ON')" class="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30 active:scale-95 transition flex items-center justify-center gap-2">
-            <i class="fa-solid fa-power-off"></i> สั่งเปิด (ON)
-          </button>
-          <button onclick="sendCommand('OFF')" class="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-rose-600/20 text-rose-300 border border-rose-500/30 hover:bg-rose-600/30 active:scale-95 transition flex items-center justify-center gap-2">
-            <i class="fa-solid fa-stop"></i> สั่งปิด (OFF)
-          </button>
-        </div>
-
-        <div class="text-xs text-slate-500 p-3 bg-slate-950/40 rounded-xl border border-cardBorder/60">
-          <i class="fa-solid fa-circle-info mr-1 text-slate-400"></i>
-          เมื่อกดปุ่ม คำสั่งจะส่งไปยังบอร์ด ESP32 และสถานะจะอัปเดตยืนยันตามค่าฟิลด์ <code class="text-slate-300 font-mono">"status"</code> ที่ส่งกลับมาใน Telemetry
+        <div class="flex items-center gap-3 text-xs">
+          <span class="inline-flex items-center gap-1.5 text-orange-400 font-medium">
+            <span class="w-2.5 h-2.5 rounded-full bg-orange-400"></span> Temp (°C)
+          </span>
+          <span class="inline-flex items-center gap-1.5 text-sky-400 font-medium">
+            <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span> Humidity (%)
+          </span>
         </div>
       </div>
 
-      <!-- Realtime Chart (2 Columns) -->
-      <div class="lg:col-span-2 bg-cardBg border border-cardBorder rounded-2xl p-6 flex flex-col justify-between">
-        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div>
-            <h2 class="text-base font-bold text-white flex items-center gap-2">
-              <i class="fa-solid fa-chart-line text-emerald-400"></i> กราฟข้อมูลย้อนหลัง (Telemetry History)
-            </h2>
-            <p class="text-xs text-slate-400">แสดงผล 20 จุดข้อมูลล่าสุดแบบเรียลไทม์</p>
-          </div>
-          <div class="flex items-center gap-2 text-xs">
-            <span class="inline-flex items-center gap-1.5 text-orange-400 font-medium">
-              <span class="w-2.5 h-2.5 rounded-full bg-orange-400"></span> Temp (°C)
-            </span>
-            <span class="inline-flex items-center gap-1.5 text-sky-400 font-medium ml-2">
-              <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span> Humidity (%)
-            </span>
-          </div>
-        </div>
-
-        <div class="relative w-full h-[280px] sm:h-[300px]">
-          <canvas id="telemetryChart"></canvas>
-        </div>
+      <div class="relative w-full h-[280px] sm:h-[320px]">
+        <canvas id="telemetryChart"></canvas>
       </div>
-
     </div>
 
-    <!-- Live Event Log Stream (Collapsible Terminal Style) -->
+    <!-- Live Event Log Stream (Console Style) -->
     <div class="bg-cardBg border border-cardBorder rounded-2xl overflow-hidden shadow-sm">
       <div class="p-4 border-b border-cardBorder flex items-center justify-between bg-slate-900/60">
         <div class="flex items-center gap-2.5">
@@ -267,14 +346,14 @@
             <span class="w-3 h-3 rounded-full bg-amber-500/80 inline-block"></span>
             <span class="w-3 h-3 rounded-full bg-emerald-500/80 inline-block"></span>
           </div>
-          <span class="text-xs font-semibold text-slate-300 font-mono ml-2">Live MQTT Stream Console</span>
+          <span class="text-xs font-semibold text-slate-300 font-mono ml-2">MQTT Real-time Stream Console</span>
         </div>
         <button onclick="clearLogs()" class="text-xs text-slate-400 hover:text-white px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 transition">
           <i class="fa-solid fa-trash-can mr-1"></i> ล้าง Log
         </button>
       </div>
       <div id="consoleLog" class="p-4 font-mono text-xs text-slate-300 h-44 overflow-y-auto space-y-1.5 custom-scrollbar bg-slate-950/70">
-        <div class="text-slate-500 italic">[System] เริ่มต้นระบบ Dashboard กำลังเชื่อมต่อไปยัง HiveMQ Cloud...</div>
+        <div class="text-slate-500 italic">[System] เริ่มต้นแดสบอร์ด กำลังเชื่อมต่อไปยัง HiveMQ Cloud...</div>
       </div>
     </div>
 
@@ -335,9 +414,9 @@
     </div>
   </div>
 
-  <!-- Dashboard JavaScript Application -->
+  <!-- Dashboard JavaScript Logic -->
   <script>
-    // --- ค่าเริ่มต้นการเชื่อมต่อจากหน้าต่าง HiveMQ Cloud ของคุณ ---
+    // ข้อมูลเชื่อมต่อ HiveMQ Cloud ตามที่คุณระบุ
     const DEFAULT_CONFIG = {
       host: '7de6d98045034c53b791c1436e2dfa85.s1.eu.hivemq.cloud',
       port: 8884,
@@ -348,7 +427,6 @@
       pubTopic: 'home/esp32/command'
     };
 
-    // โหลดคอนฟิกจาก LocalStorage หรือใช้ค่าเริ่มต้น
     let config = JSON.parse(localStorage.getItem('hivemq_dash_config')) || DEFAULT_CONFIG;
 
     let mqttClient = null;
@@ -358,7 +436,7 @@
     const tempData = [];
     const humData = [];
 
-    // --- เริ่มต้น Chart.js ---
+    // --- กราฟ Chart.js ---
     function initChart() {
       const ctx = document.getElementById('telemetryChart').getContext('2d');
       telemetryChart = new Chart(ctx, {
@@ -436,12 +514,11 @@
       });
     }
 
-    // --- เชื่อมต่อ MQTT ผ่าน Secure WebSocket (WSS) ---
+    // --- เชื่อมต่อ MQTT ผ่าน WebSocket (WSS) ---
     function connectMQTT() {
       updateStatus('connecting', 'Connecting...');
       logMessage(`กำลังเชื่อมต่อไปยัง wss://${config.host}:${config.port}${config.path}`);
 
-      // สุ่ม Client ID
       const clientId = 'WebDashboard_' + Math.random().toString(16).substring(2, 10);
       const url = `wss://${config.host}:${config.port}${config.path}`;
 
@@ -465,7 +542,6 @@
         updateStatus('connected', 'Connected');
         logMessage(`เชื่อมต่อ HiveMQ Cloud สำเร็จ! [Client ID: ${clientId}]`);
 
-        // Subscribe หัวข้อ Telemetry
         mqttClient.subscribe(config.subTopic, { qos: 0 }, (err) => {
           if (!err) {
             logMessage(`Subscribed สำเร็จ: ${config.subTopic}`);
@@ -499,7 +575,7 @@
       });
     }
 
-    // --- ประมวลผลข้อมูล Telemetry ที่ส่งมาจาก ESP32 ---
+    // --- ประมวลผลข้อมูล Telemetry จาก ESP32 ---
     function handleIncomingTelemetry(jsonString) {
       try {
         const data = JSON.parse(jsonString);
@@ -513,7 +589,7 @@
           document.getElementById('tempBar').style.width = `${Math.min(Math.max((temp / 50) * 100, 0), 100)}%`;
           
           let tempDesc = 'ปกติ';
-          if (temp >= 35) tempDesc = 'อากาศร้อนจัด';
+          if (temp >= 35) tempDesc = 'อากาศร้อน';
           else if (temp < 25) tempDesc = 'อากาศเย็น';
           document.getElementById('tempStatus').innerText = tempDesc;
         }
@@ -547,31 +623,24 @@
           document.getElementById('wifiStatus').innerText = label;
         }
 
-        // 4. อัปเดตสถานะ Relay / LED (Pin 2)
-        if (data.status !== undefined) {
-          const isTurnedOn = data.status === 1 || data.status === true;
-          const toggleEl = document.getElementById('relayToggle');
-          const badgeEl = document.getElementById('relayStatusBadge');
-          const helperEl = document.getElementById('switchHelperText');
-
-          toggleEl.checked = isTurnedOn;
-          if (isTurnedOn) {
-            badgeEl.className = 'px-2.5 py-1 text-sm font-semibold rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
-            badgeEl.innerText = 'LED / Relay: ON';
-            helperEl.innerText = 'สถานะปัจจุบัน: เปิดทำงานอยู่';
-          } else {
-            badgeEl.className = 'px-2.5 py-1 text-sm font-semibold rounded-lg bg-slate-800 text-slate-300 border border-slate-700';
-            badgeEl.innerText = 'LED / Relay: OFF';
-            helperEl.innerText = 'สถานะปัจจุบัน: ปิดการทำงาน';
-          }
+        // 4. อัปเดตสถานะหลอดไฟ LED ทั้ง 3 สี
+        if (data.red !== undefined) {
+          updateLedUI('red', data.red === 1 || data.red === true);
+        }
+        if (data.yellow !== undefined) {
+          updateLedUI('yellow', data.yellow === 1 || data.yellow === true);
+        }
+        if (data.green !== undefined) {
+          updateLedUI('green', data.green === 1 || data.green === true);
         }
 
-        // 5. อัปเดตเวลา Last Seen
+        // 5. อัปเดตสถานะ Online & Last Seen
         document.getElementById('lastSeen').innerText = timeLabel;
-        document.getElementById('heartbeatStatus').innerText = 'Online (เสถียร)';
-        document.getElementById('heartbeatStatus').className = 'text-emerald-400 font-medium';
+        const onlineBadge = document.getElementById('deviceOnlineBadge');
+        onlineBadge.innerText = 'Online (ทำงานปกติ)';
+        onlineBadge.className = 'px-2.5 py-1 text-sm font-semibold rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
 
-        // 6. ส่งข้อมูลลงกราฟ Realtime
+        // 6. อัปเดตกราฟเส้น
         if (telemetryChart && data.temp !== undefined && data.hum !== undefined) {
           if (chartLabels.length >= maxDataPoints) {
             chartLabels.shift();
@@ -589,18 +658,66 @@
       }
     }
 
+    // --- อัปเดต Visual Lamp & Toggle Switch ของแต่ละดวง ---
+    function updateLedUI(color, isOn) {
+      const toggle = document.getElementById(`${color}Toggle`);
+      const statusText = document.getElementById(`${color}StatusText`);
+      const lamp = document.getElementById(`${color}LampIndicator`);
+      const icon = document.getElementById(`${color}LampIcon`);
+
+      toggle.checked = isOn;
+      statusText.innerText = isOn ? 'สถานะ: เปิดทำงาน (ON)' : 'สถานะ: ปิด (OFF)';
+      statusText.className = isOn ? 'text-xs font-semibold text-white' : 'text-xs text-slate-400';
+
+      if (color === 'red') {
+        if (isOn) {
+          lamp.className = 'w-8 h-8 rounded-full bg-red-600 border-2 border-red-300 lamp-glow-red flex items-center justify-center transition-all duration-300';
+          icon.className = 'fa-solid fa-lightbulb text-white text-sm';
+        } else {
+          lamp.className = 'w-8 h-8 rounded-full bg-red-950 border-2 border-red-800 flex items-center justify-center transition-all duration-300';
+          icon.className = 'fa-solid fa-lightbulb text-red-700 text-sm';
+        }
+      } else if (color === 'yellow') {
+        if (isOn) {
+          lamp.className = 'w-8 h-8 rounded-full bg-amber-400 border-2 border-amber-200 lamp-glow-yellow flex items-center justify-center transition-all duration-300';
+          icon.className = 'fa-solid fa-lightbulb text-white text-sm';
+        } else {
+          lamp.className = 'w-8 h-8 rounded-full bg-amber-950 border-2 border-amber-800 flex items-center justify-center transition-all duration-300';
+          icon.className = 'fa-solid fa-lightbulb text-amber-700 text-sm';
+        }
+      } else if (color === 'green') {
+        if (isOn) {
+          lamp.className = 'w-8 h-8 rounded-full bg-emerald-500 border-2 border-emerald-200 lamp-glow-green flex items-center justify-center transition-all duration-300';
+          icon.className = 'fa-solid fa-lightbulb text-white text-sm';
+        } else {
+          lamp.className = 'w-8 h-8 rounded-full bg-emerald-950 border-2 border-emerald-800 flex items-center justify-center transition-all duration-300';
+          icon.className = 'fa-solid fa-lightbulb text-emerald-700 text-sm';
+        }
+      }
+    }
+
     // --- ส่งคำสั่งควบคุมไปยัง ESP32 ---
     function sendCommand(cmd) {
       if (!mqttClient || !mqttClient.connected) {
-        logMessage('ไม่สามารถส่งคำสั่งได้: ยังไม่ได้เชื่อมต่อ MQTT Broker', 'error');
+        logMessage('ไม่สามารถส่งคำสั่งได้: ขาดการเชื่อมต่อกับ Broker', 'error');
         return;
       }
       mqttClient.publish(config.pubTopic, cmd, { qos: 0 });
       logMessage(`ส่งคำสั่ง -> [${config.pubTopic}]: ${cmd}`, 'outgoing');
     }
 
-    function toggleRelay(isChecked) {
-      sendCommand(isChecked ? 'ON' : 'OFF');
+    // ควบคุมรายดวง
+    function toggleSingleLed(color, isChecked) {
+      let command = '';
+      if (color === 'red') command = isChecked ? 'RED_ON' : 'RED_OFF';
+      else if (color === 'yellow') command = isChecked ? 'YELLOW_ON' : 'YELLOW_OFF';
+      else if (color === 'green') command = isChecked ? 'GREEN_ON' : 'GREEN_OFF';
+      sendCommand(command);
+    }
+
+    // สั่งเปิดหรือปิดพร้อมกันทั้งหมด
+    function sendAllLeds(action) {
+      sendCommand(action);
     }
 
     // --- อัปเดต Badge แสดงสถานะการเชื่อมต่อ ---
@@ -627,7 +744,7 @@
       }
     }
 
-    // --- พิมพ์ Log ลงกล่อง Console ---
+    // --- พิมพ์ Log ลงหน้า Console ---
     function logMessage(msg, type = 'info') {
       const consoleEl = document.getElementById('consoleLog');
       const time = new Date().toLocaleTimeString();
@@ -648,7 +765,7 @@
       document.getElementById('consoleLog').innerHTML = '';
     }
 
-    // --- Modal Configuration Management ---
+    // --- Modal Configuration Drawer ---
     function toggleConfigModal() {
       const modal = document.getElementById('configModal');
       modal.classList.toggle('hidden');
@@ -682,7 +799,6 @@
       connectMQTT();
     }
 
-    // เริ่มต้นระบบเมื่อโหลดหน้าเสร็จ
     window.onload = function() {
       initChart();
       connectMQTT();
